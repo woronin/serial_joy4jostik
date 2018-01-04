@@ -1,156 +1,479 @@
 //////////////////////////////////////////////
-//     2017.12.29 woronin,  umkiedu@gmail.com     
-//     Robot UMKI controller K6_2_mini (K6)
-//     To connect using 4joyjostik mobile app by link http://arduino-robot.site/basic/serial                 
-//     - for ANDROID 4.0.1 or later version; 
-//////////////////////////////////////////////   
+//     2018.01.05 woronin,  umkiedu@gmail.com
+//     Robot UMKI controller K6
+//     To connect using 4joyjostik mobile app by link http://arduino-robot.site/basic/serial
+//     - for ANDROID 4.0.1 or later version;
+//////////////////////////////////////////////
 #include <SoftwareSerial.h>
- 
-SoftwareSerial BTSerial(6, 7); // RX, TX for k6_2_mini
-// SoftwareSerial BTSerial(10, 11); // RX, TX for k6
-int byte_forward[]={0, 0,   129, 0, 4, 0, 0};
-int byte_bakward[]={0, 0,   127, 0, 4, 0, 0};
-int byte_left[]=   {0, 129, 0,   0, 4, 0, 0};
-int byte_right[]=  {0, 127, 0,   0, 4, 0, 0};
-int byte_stop[]=   {0, 0,   0,   0, 4, 0, 0};
-int byte_start[]=  {0, 0,   0,   0, 4, 0, 2};
-int m1speed=3; // скорость левый
-int m2speed=5; // скорость правый
-int m1direction=2; // направление правый
-int m2direction=4; // направление левый
+
+SoftwareSerial BTSerial(10, 11); // RX, TX
+int byte_forward[] = {0, 0,   129, 0, 4, 0, 0};
+int byte_bakward[] = {0, 0,   127, 0, 4, 0, 0};
+int byte_left[]    = {0, 129, 0,   0, 4, 0, 0};
+int byte_right[]   = {0, 127, 0,   0, 4, 0, 0};
+int byte_stop[]    = {0, 0,   0,   0, 4, 0, 0};
+int byte_start[]   = {0, 0,   0,   0, 4, 0, 2};
+int byte_a[]       = {0, 0,   0,   0, 4, 1, 0}; // A
+int byte_b[]       = {0, 0,   0,   0, 4, 2, 0}; // B
+int byte_c[]       = {0, 0,   0,   0, 4, 4, 0}; // C
+int byte_x[]       = {0, 0,   0,   0, 4, 8, 0}; // X
+int byte_y[]       = {0, 0,   0,   0, 4, 16, 0};// Y
+int byte_z[]       = {0, 0,   0,   0, 4, 32, 0};// Z
+int ml_speed = 3; // скорость левый
+int mr_speed = 5; // скорость правый
+int motor_r1 = 2; // направление правый
+int motor_l1 = 4; // направление левый
 
 int program_move[25], program_time[25], program_speed[25]; //инициализация трех массивов, направления, времени, скорости
-int side, pwm=255,time1, time2, press_time;
-
+int side, pwm = 255, press_time, time1, time2, press_but = 0, press_last = 0, flag_last_but = 0, flag_start_program = 0;
+int timeX = 150; // время в милисек для кнопки X
+int timeY = 300; // время в милисек для кнопки Y
+int n = 0; //  номер команды движения из 25
 
 void setup() {
   // инициализируем те порты,
   BTSerial.begin(9600);
   Serial.begin(19200);
 }
+
+
 void loop() // выполняется циклически записываем в порт по шнурку все полученны данные с блютуса
 {
-
   int inByte[7], i, count; //i - это элемент массива команды из 7 байт
-  static int n=0; //  номер команды движения из 25
+
+  // читаем из блютус порта 7 байт
   count = BTSerial.available();
-  if (count<7) return;
-        for (i = 0; i<7; i++) {
-        inByte[i] = BTSerial.read();   
-        delay(50);
-//        Serial.print(inByte[i]); 
-      } 
-  if (inByte[1]==byte_forward[1] && inByte[2]==byte_forward[2]&& inByte[6]==byte_forward[6]) {
-     go_forward(pwm);
-     program_move[n]=0x2; //запоминеаем в программе шаг вперед
-     time1 = millis();  // Запоминаем время нажатия кнопки
-     n++;
+  if (count < 7) return;
+  for (i = 0; i < count; i++) {
+    inByte[i] = BTSerial.read();
+    delay(10);
+    //    Serial.print(inByte[i]); // вывод в COM порт побайтоно в десятичной системе
   }
- 
-  else if (inByte[1]==byte_left[1] && inByte[2]==byte_left[2]&& inByte[6]==byte_left[6]) {
-     go_left(pwm);
-     program_move[n]=0x4; //запоминеаем в программе шаг влево
-     time1 = millis();  // Запоминаем время нажатия кнопки     
-     n++;   
-      }
+  //  Serial.println(); // перевод строки в мониторе
 
-  else if (inByte[1]==byte_right[1] && inByte[2]==byte_right[2]&& inByte[6]==byte_right[6]) {
-     go_right(pwm);
-     program_move[n]=0x8; //запоминеаем в программе шаг вправо
-     time1 = millis();  // Запоминаем время нажатия кнопки     
-     n++;     
-  }     
+  // начало разбор принятых байт
 
-  else if (inByte[1]==byte_bakward[1] && inByte[2]==byte_bakward[2]&& inByte[6]==byte_bakward[6]) {
-     go_back(pwm);
-     program_move[n]=0xc; //запоминеаем в программе шаг назад
-     time1 = millis();  // Запоминаем время нажатия кнопки     
-     n++;
+  if ((inByte[1] == byte_forward[1]) && (inByte[2] == byte_forward[2]) && (inByte[5] == byte_forward[5]) && (inByte[6] == byte_forward[6])) {
+    press_but = 48; // нажата кнопка вперед
   }
-  else if (inByte[1]==byte_stop[1] && inByte[2]==byte_stop[2]&& inByte[6]==byte_stop[6]) {
-      time2 = millis();  // Запоминаем время отпускания кнопки
-      if (n>0)
-      program_time[n-1]=time2-time1; //записываем по индексу в массив время движения
-      go_stop(pwm);
-      inByte[1]=1;
-   }  
+  else if ((inByte[1] == byte_left[1]) && (inByte[2] == byte_left[2])  && (inByte[5] == byte_left[5]) && (inByte[6] == byte_left[6])) {
+    press_but = 52; // нажата кнопка влево
+  }
+  else if ((inByte[1] == byte_right[1]) && (inByte[2] == byte_right[2])  && (inByte[5] == byte_right[5]) && (inByte[6] == byte_right[6])) {
+    press_but = 56; // нажата кнопка вправо
+  }
+  else if ((inByte[1] == byte_bakward[1]) && (inByte[2] == byte_bakward[2])  && (inByte[5] == byte_bakward[5]) && (inByte[6] == byte_bakward[6])) {
+    press_but = 60; // нажата кнопка назад
+  }
+  else if ((inByte[1] == byte_stop[1]) && (inByte[2] == byte_stop[2]) && (inByte[5] == byte_stop[5]) && (inByte[6] == byte_stop[6])) {
+    press_but = 65; // нажата кнопка стоп
+  }
+  else if ((inByte[1] == byte_start[1]) && (inByte[2] == byte_start[2]) && (inByte[5] == byte_start[5]) && (inByte[6] == byte_start[6])) {
+    press_but = 66; // нажата кнопка старт
+  }
+  // Разбор нажатия дополнительных кнопок
+  else if ((inByte[1] == byte_a[1]) && (inByte[2] == byte_a[2]) && (inByte[4] == byte_a[4]) && (inByte[5] == byte_a[5])) {
+    press_but = 71; // нажата кнопка A
+  }
+  else  if ((inByte[1] == byte_b[1]) && (inByte[2] == byte_b[2]) && (inByte[4] == byte_b[4]) && (inByte[5] == byte_b[5])) {
+    press_but = 72; // нажата кнопка B
+  }
+  else  if ((inByte[1] == byte_c[1]) && (inByte[2] == byte_c[2]) && (inByte[4] == byte_c[4]) && (inByte[5] == byte_c[5])) {
+    press_but = 74; // нажата кнопка C
+  }
+  else if ((inByte[1] == byte_x[1]) && (inByte[2] == byte_x[2]) && (inByte[4] == byte_x[4]) && (inByte[5] == byte_x[5])) {
+    press_but = 78; // нажата кнопка X
+  }
+  else if ((inByte[1] == byte_y[1]) && (inByte[2] == byte_y[2]) && (inByte[4] == byte_y[4]) && (inByte[5] == byte_y[5])) {
+    press_but = 80; // нажата кнопка Y
+  }
+  else if ((inByte[1] == byte_z[1]) && (inByte[2] == byte_z[2]) && (inByte[4] == byte_z[4]) && (inByte[5] == byte_z[5])) {
+    press_but = 90; // нажата кнопка Z
+  }
+  // конец разбор принятых байт
+  if (n >= 25) n = 0; // массив из 25 шагов команды, защита от переполнения
 
-  else if (inByte[1]==byte_start[1] &&inByte[2]==byte_start[2] && inByte[6]==byte_start[6]) {
-      Serial.println(" 1111 ");   
-      go_program (pwm); // запускаем езду по программе
-      n=0;
-  }     
-  if (n>=25) n=0; // массив из 25 шагов команды, защита от переполнения
+  // обработка нажатия кнопки
+  if ( press_but > 67) { // если нажата кнопка A B C X Y Z то
+    press_last = press_but; // запоминаем последнюю нажатую кнопку
+    return; // уходим на следующий цикл
+  }
+  // Разбор кнопок движения +++++++++++++++++++++++++++++++++++
+  // Движение вперед
+  if ( press_but == 48) {
+    n++; // для программы увеличиваем на единицу индекс массива
+    time1 = millis();  // Запоминаем время нажатия кнопки
+    flag_last_but = 1; // поднимаем флаг нажатой кнопки   для подсчета времени
+    if (flag_start_program == 1)  {
+      memset (program_move, 0, 25); //для первой команды  после программы обнуляем массив
+      n = 1; // ставим индексы всех массивов в 0
+      flag_start_program = 0; // опускаем флаг старта программы
+    }
+    if (press_last == 78) {
+      go_forward_x(pwm);
+      program_move[n] = 0x0; //запоминаем в программе шаг вперед на времяX
+    }
+    else if (press_last == 80) {
+      go_forward_y(pwm);
+      program_move[n] = 0x2; //запоминаем в программе шаг впере на время Y
+    }
+    else
+    {
+      go_forward_z(pwm);
+      program_move[n] = 0x1; //запоминаем в программе шаг вперед на время Z  по стопу
+    }
+  }
 
+  // Движение влево ++++++++++++++++++++++++++++
+  if ( press_but == 52) {
+    n++; // для программы увеличиваем на единицу индекс массива
+    time1 = millis();  // Запоминаем время нажатия кнопки
+    flag_last_but = 1; // поднимаем флаг нажатой кнопки   для подсчета времени
+    if (flag_start_program == 1)  {
+      memset (program_move, 0, 25); //для первой команды  после программы обнуляем массив
+      n = 1; // ставим индексы всех массивов в 0
+      flag_start_program = 0; // опускаем флаг старта программы
+    }
+
+    if (press_last == 78) {
+      go_left_x(pwm);
+      program_move[n] = 0x4; //запоминаем в программе шаг влево на времяX
+    }
+    else if (press_last == 80) {
+      go_left_y(pwm);
+      program_move[n] = 0x6; //запоминаем в программе шаг влево на время Y
+    }
+    else
+    {
+      go_left_z(pwm);
+      program_move[n] = 0x5; //запоминаем в программе шаг влево на время Z  по стопу
+    }
+  }
+
+  // Движение вправо ++++++++++++++++++++++++++++++
+  if ( press_but == 56) {
+    n++; // для программы увеличиваем на единицу индекс массива
+    time1 = millis();  // Запоминаем время нажатия кнопки
+    flag_last_but = 1; // поднимаем флаг нажатой кнопки   для подсчета времени
+    if (flag_start_program == 1)  {
+      memset (program_move, 0, 25); //для первой команды  после программы обнуляем массив
+      n = 1; // ставим индексы всех массивов в 0
+      flag_start_program = 0; // опускаем флаг старта программы
+    }
+
+    if (press_last == 78) {
+      go_right_x(pwm);
+      program_move[n] = 0x8; //запоминаем в программе шаг вправо на времяX
+    }
+    else if (press_last == 80) {
+      go_right_y(pwm);
+      program_move[n] = 0xA; //запоминаем в программе шаг вправо на время Y
+    }
+    else
+    {
+      go_right_z(pwm);
+      program_move[n] = 0x9; //запоминаем в программе шаг вправо на время Z  по стопу
+    }
+  }
+
+  // Движение назад +++++++++++++++++++++++++++++++++++++
+  if ( press_but == 60) {
+    n++; // для программы увеличиваем на единицу индекс массива
+    time1 = millis();  // Запоминаем время нажатия кнопки
+    flag_last_but = 1; // поднимаем флаг нажатой кнопки   для подсчета времени
+    if (flag_start_program == 1)  {
+      memset (program_move, 0, 25); //для первой команды  после программы обнуляем массив
+      n = 1; // ставим индексы всех массивов в 0
+      flag_start_program = 0; // опускаем флаг старта программы
+    }
+
+    if (press_last == 78) {
+      go_bakward_x(pwm);
+      program_move[n] = 0xC; //запоминаем в программе шаг назад на времяX
+    }
+    else if (press_last == 80) {
+      go_bakward_y(pwm);
+      program_move[n] = 0xE; //запоминаем в программе шаг назад на время Y
+    }
+    else
+    {
+      go_bakward_z(pwm);
+      program_move[n] = 0xD; //запоминаем в программе шаг назад на время Z  по стопу
+    }
+  }
+
+  // Движение стоп ++++++++++++++++++++++++++++++
+  if ( press_but == 65) {
+    time2 = millis();  // Запоминаем время нажатия кнопки
+    if (n > 0) {
+      if (flag_last_but == 1)
+        program_time[n] = time2 - time1; //записываем по индексу в массив время движения
+      flag_last_but = 0; // опускаем флаг нажатой кнопки
+    }
+    go_stop(pwm);
+  }
+
+  // Движение по кнопке программа +++++++++++++++++++
+  if ( press_but == 66) {
+    if (press_last == 71)go_program_a (pwm, n); // запускаем езду по командам программе в прямой последовательности
+    if (press_last == 72)go_program_b (pwm, n); // запускаем езду по командам программе в обратной последовательности
+    flag_start_program = 1; // поднимаем флаг старта программы
+  }
+
+}//все, конец рабочего цикла
+
+
+////////// подпрограммы ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+void go_forward_x(int pwm) // вперед поехали после нажатой X
+{
+  digitalWrite(motor_r1, LOW); // вперед правый
+  digitalWrite(motor_l1, LOW); // вперед левый
+  analogWrite(ml_speed, pwm); // скорость
+  analogWrite(mr_speed, pwm);
+  delay(timeX);
+  analogWrite(ml_speed, 0); // скорость стоп
+  analogWrite(mr_speed, 0);
 }
 
-void go_forward(int pwm) // вперед поехали
+void go_forward_y(int pwm)  // вперед поехали после нажатой Y
 {
-digitalWrite(m1direction,LOW); // вперед правый
-digitalWrite(m2direction,LOW); // вперед левый
-analogWrite(m1speed, pwm); // скорость
-analogWrite(m2speed, pwm);
+  digitalWrite(motor_r1, LOW); // вперед правый
+  digitalWrite(motor_l1, LOW); // вперед левый
+  analogWrite(ml_speed, pwm); // скорость
+  analogWrite(mr_speed, pwm);
+  delay(timeY);
+  analogWrite(ml_speed, 0); // скорость стоп
+  analogWrite(mr_speed, 0);
+}
+
+void go_forward_z(int pwm)  // вперед поехали после нажатой Z
+{
+  digitalWrite(motor_r1, LOW); // вперед правый
+  digitalWrite(motor_l1, LOW); // вперед левый
+  analogWrite(ml_speed, pwm); // скорость
+  analogWrite(mr_speed, pwm);
 }
 
 void go_back(int pwm)  // назад поехали
 {
-digitalWrite(m1direction,HIGH); // назад правый
-digitalWrite(m2direction,HIGH); // назад левый
-analogWrite(m1speed, pwm); // скорость
-analogWrite(m2speed, pwm);
+  digitalWrite(motor_r1, HIGH); // назад правый
+  digitalWrite(motor_l1, HIGH); // назад левый
+  analogWrite(ml_speed, pwm); // скорость
+  analogWrite(mr_speed, pwm);
 }
 
-void go_left(int pwm)  // влево поехали
+void go_bakward_x(int pwm) // назад поехали после нажатой X
 {
-digitalWrite(m1direction,LOW); // вперед правый
-digitalWrite(m2direction,HIGH); // назад левый
-analogWrite(m1speed, pwm); // скорость
-analogWrite(m2speed, pwm);
+  digitalWrite(motor_r1, HIGH); // назад правый
+  digitalWrite(motor_l1, HIGH); // назад левый
+  analogWrite(ml_speed, pwm); // скорость
+  analogWrite(mr_speed, pwm);
+  delay(timeX);
+  analogWrite(ml_speed, 0); // скорость стоп
+  analogWrite(mr_speed, 0);
 }
 
-void go_right(int pwm) // вправо поехали
+void go_bakward_y(int pwm)  // назад поехали после нажатой Y
 {
-digitalWrite(m1direction,HIGH ); // назад правый
-digitalWrite(m2direction,LOW); // вперед левый
-analogWrite(m1speed, pwm); // скорость
-analogWrite(m2speed, pwm);
+  digitalWrite(motor_r1, HIGH); // назад правый
+  digitalWrite(motor_l1, HIGH); // назад левый
+  analogWrite(ml_speed, pwm); // скорость
+  analogWrite(mr_speed, pwm);
+  delay(timeY);
+  analogWrite(ml_speed, 0); // скорость стоп
+  analogWrite(mr_speed, 0);
 }
+
+void go_bakward_z(int pwm)  // назад поехали после нажатой Z
+{
+  digitalWrite(motor_r1, HIGH); // назад правый
+  digitalWrite(motor_l1, HIGH); // назад левый
+  analogWrite(ml_speed, pwm); // скорость
+  analogWrite(mr_speed, pwm);
+}
+
+void go_left_x(int pwm)  // влево поехали после нажатой X
+{
+  digitalWrite(motor_r1, LOW); // вперед правый
+  digitalWrite(motor_l1, HIGH); // назад левый
+  analogWrite(ml_speed, pwm); // скорость
+  analogWrite(mr_speed, pwm);
+  delay(timeX);
+  analogWrite(ml_speed, 0); // скорость стоп
+  analogWrite(mr_speed, 0);
+}
+
+void go_left_y(int pwm)  // влево поехали после нажатой Y
+{
+  digitalWrite(motor_r1, LOW); // вперед правый
+  digitalWrite(motor_l1, HIGH); // назад левый
+  analogWrite(ml_speed, pwm); // скорость
+  analogWrite(mr_speed, pwm);
+  delay(timeY);
+  analogWrite(ml_speed, 0); // скорость стоп
+  analogWrite(mr_speed, 0);
+}
+
+void go_left_z(int pwm)  // влево поехали после нажатой Z
+{
+  digitalWrite(motor_r1, LOW); // вперед правый
+  digitalWrite(motor_l1, HIGH); // назад левый
+  analogWrite(ml_speed, pwm); // скорость
+  analogWrite(mr_speed, pwm);
+}
+
+void go_right_x(int pwm) // вправо поехали после нажатой X
+{
+  digitalWrite(motor_r1, HIGH ); // назад правый
+  digitalWrite(motor_l1, LOW); // вперед левый
+  analogWrite(ml_speed, pwm); // скорость
+  analogWrite(mr_speed, pwm);
+  delay(timeX);
+  analogWrite(ml_speed, 0); // скорость стоп
+  analogWrite(mr_speed, 0);
+}
+
+void go_right_y(int pwm) // вправо поехали после нажатой Y
+{
+  digitalWrite(motor_r1, HIGH ); // назад правый
+  digitalWrite(motor_l1, LOW); // вперед левый
+  analogWrite(ml_speed, pwm); // скорость
+  analogWrite(mr_speed, pwm);
+  delay(timeY);
+  analogWrite(ml_speed, 0); // скорость стоп
+  analogWrite(mr_speed, 0);
+}
+
+void go_right_z(int pwm) // вправо поехали после нажатой Z
+{
+  digitalWrite(motor_r1, HIGH ); // назад правый
+  digitalWrite(motor_l1, LOW); // вперед левый
+  analogWrite(ml_speed, pwm); // скорость
+  analogWrite(mr_speed, pwm);
+}
+
 
 void go_stop(int pwm) // стоп
 {
-      analogWrite(m1speed, 0); // скорость стоп
-      analogWrite(m2speed, 0);
+  analogWrite(ml_speed, 0); // скорость стоп
+  analogWrite(mr_speed, 0);
 }
 
-void go_program(int pwm) // Подпрограмма езды по заданым шагам программы
+/////////////////// Подпрограммы езды по ранее введенным командам +++++++++++++++++++++++++++++++++++++++++++++++++++++++
+void go_program_a(int pwm, int n_con) // Подпрограмма езды по заданым шагам программы после А
 {
   int n;
- for (n = 0; n< 25; n++) {
-   Serial.print(n); 
-   Serial.print(" np= ");    
-   Serial.print(program_move[n]); 
-      Serial.print(" tm= ");    
-   Serial.println(program_time[n]); 
-   if (program_move[n]==0x2) {
-     go_forward(pwm);
-     delay(program_time[n]);
-     go_stop(pwm);
-  }
-  else if (program_move[n]==0x4) {
-     go_left(pwm);
-     delay(program_time[n]);
-     go_stop(pwm);
-  }
-  else if (program_move[n]==0x8) {
-     go_right(pwm);
-     delay(program_time[n]);
-     go_stop(pwm);
-  }
-  else if (program_move[n]==0xc) {
-     go_back(pwm);
-     delay(program_time[n]);
-     go_stop(pwm);
-  }
+  for (n = 1; n <= n_con; n++) {
 
- }
+    Serial.print(n);
+    Serial.print(" np= ");
+    Serial.print(program_move[n]);
+    Serial.print(" tm= ");
+    Serial.println(program_time[n]);
+
+    if     (program_move[n] == 0x0)  { // вперед при нажатой X; T min
+      go_forward_x(pwm);
+    }
+    else if (program_move[n] == 0x2) { // вперед при нажатой Y; T ave
+      go_forward_y(pwm);
+    }
+    else if (program_move[n] == 0x1) { // вперед при нажатой Z; T max
+      go_forward_z(pwm);
+      delay(program_time[n]);
+      go_stop(pwm);
+    }
+    else if (program_move[n] == 0x4) {// влево при нажатой X; T min
+      go_left_x(pwm);
+    }
+    else if (program_move[n] == 0x6) {// влево при нажатой Y; T ave
+      go_left_y(pwm);
+    }
+    else if (program_move[n] == 0x5) {// влево при нажатой Z; T max
+      go_left_z(pwm);
+      delay(program_time[n]);
+      go_stop(pwm);
+    }
+    else if (program_move[n] == 0x8) {// вправо при нажатой X; T min
+      go_right_x(pwm);
+    }
+    else if (program_move[n] == 0xA) {// вправо при нажатой Y; T ave
+      go_right_y(pwm);
+    }
+    else if (program_move[n] == 0x9) {// вправо при нажатой Z; T max
+      go_right_z(pwm);
+      delay(program_time[n]);
+      go_stop(pwm);
+    }
+    else if (program_move[n] == 0xC) {// назад при нажатой X; T min
+      go_bakward_x(pwm);
+    }
+    else if (program_move[n] == 0xE) {// назад при нажатой Y; T ave
+      go_bakward_y(pwm);
+    }
+    else if (program_move[n] == 0xD) {// назад при нажатой Z; T max
+      go_bakward_z(pwm);
+      delay(program_time[n]);
+      go_stop(pwm);
+    }
+
+  }
+}
+
+void go_program_b(int pwm, int n_con) // Подпрограмма езды по заданым шагам программы после B
+{
+  int n;
+  for (n = n_con; n > 0; n--) {
+    Serial.print(n);
+    Serial.print(" np= ");
+    Serial.print(program_move[n]);
+    Serial.print(" tm= ");
+    Serial.println(program_time[n]);
+
+    if     (program_move[n] == 0x0)  { // вперед при нажатой X; T min
+      go_forward_x(pwm);
+    }
+    else if (program_move[n] == 0x2) { // вперед при нажатой Y; T ave
+      go_forward_y(pwm);
+    }
+    else if (program_move[n] == 0x1) { // вперед при нажатой Z; T max
+      go_forward_z(pwm);
+      delay(program_time[n]);
+      go_stop(pwm);
+    }
+    else if (program_move[n] == 0x4) {// влево при нажатой X; T min
+      go_left_x(pwm);
+    }
+    else if (program_move[n] == 0x6) {// влево при нажатой Y; T ave
+      go_left_y(pwm);
+    }
+    else if (program_move[n] == 0x5) {// влево при нажатой Z; T max
+      go_left_z(pwm);
+      delay(program_time[n]);
+      go_stop(pwm);
+    }
+    else if (program_move[n] == 0x8) {// вправо при нажатой X; T min
+      go_right_x(pwm);
+    }
+    else if (program_move[n] == 0xA) {// вправо при нажатой Y; T ave
+      go_right_y(pwm);
+    }
+    else if (program_move[n] == 0x9) {// вправо при нажатой Z; T max
+      go_right_z(pwm);
+      delay(program_time[n]);
+      go_stop(pwm);
+    }
+    else if (program_move[n] == 0xC) {// назад при нажатой X; T min
+      go_bakward_x(pwm);
+    }
+    else if (program_move[n] == 0xE) {// назад при нажатой Y; T ave
+      go_bakward_y(pwm);
+    }
+    else if (program_move[n] == 0xD) {// назад при нажатой Z; T max
+      go_bakward_z(pwm);
+      delay(program_time[n]);
+      go_stop(pwm);
+    }
+
+  }
 }

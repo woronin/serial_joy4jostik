@@ -1,12 +1,13 @@
 //////////////////////////////////////////////
 //     2017.12.29 woronin,  umkiedu@gmail.com     
-//     Robot UMKI controller K6_2_mini
+//     Robot UMKI controller K6_2_mini (K6)
 //     To connect using 4joyjostik mobile app by link http://arduino-robot.site/basic/serial                 
 //     - for ANDROID 4.0.1 or later version; 
 //////////////////////////////////////////////   
 #include <SoftwareSerial.h>
  
-SoftwareSerial BTSerial(6, 7); // RX, TX
+SoftwareSerial BTSerial(6, 7); // RX, TX for k6_2_mini
+// SoftwareSerial BTSerial(10, 11); // RX, TX for k6
 int byte_forward[]={0, 0,   129, 0, 4, 0, 0};
 int byte_bakward[]={0, 0,   127, 0, 4, 0, 0};
 int byte_left[]=   {0, 129, 0,   0, 4, 0, 0};

@@ -1,5 +1,5 @@
 //////////////////////////////////////////////
-//     2018.01.05 woronin,  umkiedu@gmail.com
+//     2018.01.10 woronin,  umkiedu@gmail.com
 //     Robot UMKI controller K6
 //     To connect using 4joyjostik mobile app by link http://arduino-robot.site/basic/serial
 //     - for ANDROID 4.0.1 or later version;
@@ -105,7 +105,7 @@ void loop() // выполняется циклически записываем 
     time1 = millis();  // Запоминаем время нажатия кнопки
     flag_last_but = 1; // поднимаем флаг нажатой кнопки   для подсчета времени
     if (flag_start_program == 1)  {
-      memset (program_move, 0, 25); //для первой команды  после программы обнуляем массив
+      memset (program_move, 0, sizeof(int)*25); //для первой команды  после программы обнуляем массив
       n = 1; // ставим индексы всех массивов в 0
       flag_start_program = 0; // опускаем флаг старта программы
     }
@@ -130,7 +130,7 @@ void loop() // выполняется циклически записываем 
     time1 = millis();  // Запоминаем время нажатия кнопки
     flag_last_but = 1; // поднимаем флаг нажатой кнопки   для подсчета времени
     if (flag_start_program == 1)  {
-      memset (program_move, 0, 25); //для первой команды  после программы обнуляем массив
+      memset (program_move, 0, sizeof(int)*25); //для первой команды  после программы обнуляем массив
       n = 1; // ставим индексы всех массивов в 0
       flag_start_program = 0; // опускаем флаг старта программы
     }
@@ -156,7 +156,7 @@ void loop() // выполняется циклически записываем 
     time1 = millis();  // Запоминаем время нажатия кнопки
     flag_last_but = 1; // поднимаем флаг нажатой кнопки   для подсчета времени
     if (flag_start_program == 1)  {
-      memset (program_move, 0, 25); //для первой команды  после программы обнуляем массив
+      memset (program_move, 0, sizeof(int)*25); //для первой команды  после программы обнуляем массив
       n = 1; // ставим индексы всех массивов в 0
       flag_start_program = 0; // опускаем флаг старта программы
     }
@@ -182,7 +182,7 @@ void loop() // выполняется циклически записываем 
     time1 = millis();  // Запоминаем время нажатия кнопки
     flag_last_but = 1; // поднимаем флаг нажатой кнопки   для подсчета времени
     if (flag_start_program == 1)  {
-      memset (program_move, 0, 25); //для первой команды  после программы обнуляем массив
+      memset (program_move, 0, sizeof(int)*25); //для первой команды  после программы обнуляем массив
       n = 1; // ставим индексы всех массивов в 0
       flag_start_program = 0; // опускаем флаг старта программы
     }
@@ -368,7 +368,7 @@ void go_program_a(int pwm, int n_con) // Подпрограмма езды по 
 
     Serial.print(n);
     Serial.print(" np= ");
-    Serial.print(program_move[n]);
+    Serial.print(program_move[n], HEX);
     Serial.print(" tm= ");
     Serial.println(program_time[n]);
 
@@ -416,7 +416,7 @@ void go_program_a(int pwm, int n_con) // Подпрограмма езды по 
       delay(program_time[n]);
       go_stop(pwm);
     }
-
+delay(500);
   }
 }
 
@@ -474,6 +474,6 @@ void go_program_b(int pwm, int n_con) // Подпрограмма езды по 
       delay(program_time[n]);
       go_stop(pwm);
     }
-
+delay(500);
   }
 }

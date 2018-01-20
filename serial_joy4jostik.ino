@@ -1,5 +1,5 @@
 //////////////////////////////////////////////
-//     2018.01.10 woronin,  umkiedu@gmail.com
+//     2018.01.20 woronin,  umkiedu@gmail.com
 //     Robot UMKI controller K6
 //     To connect using 4joyjostik mobile app by link http://arduino-robot.site/basic/serial
 //     - for ANDROID 4.0.1 or later version;

@@ -26,6 +26,7 @@ int motor_l1 = 4; // направление левый
 
 int program_move[25], program_time[25], program_speed[25]; //инициализация трех массивов, направления, времени, скорости
 int side, pwm = 255, press_time, time1, time2, press_but = 0, press_last = 0, flag_last_but = 0, flag_start_program = 0;
+int flag_source = 0; // флаг источника данных команд 0- ничего , 1 - блютус, 2 - снап
 int timeX = 150; // время в милисек для кнопки X
 int timeY = 300; // время в милисек для кнопки Y
 int n = 0; //  номер команды движения из 25
@@ -39,187 +40,234 @@ void setup() {
 
 void loop() // выполняется циклически записываем в порт по шнурку все полученны данные с блютуса
 {
-  int inByte[7], i, count; //i - это элемент массива команды из 7 байт
+  int inByte[25], i, count; //i - это элемент массива команды из 7 байт
+  static int count_snap = 0; //  длина в байтах команды от снапа
+  static int flag_snap = 0; // только для снапа, когда 0 - ожидает конца пакета, 1 - получен последний байт пакета
+  // todo  сделать защиту от переполнения массива inByte[]
+  // todo  сдедать таймаут для ожидания 0x8f
 
   // читаем из блютус порта 7 байт
   count = BTSerial.available();
-  if (count < 7) return;
-  for (i = 0; i < count; i++) {
-    inByte[i] = BTSerial.read();
-    delay(10);
-    //    Serial.print(inByte[i]); // вывод в COM порт побайтоно в десятичной системе
+  if (count < 1) return;
+  switch (flag_source) {
+    case 0: //  определяем по первому байту откуда пришли байты в порт - либо с моб, либо от снап
+      inByte[0] = BTSerial.read(); //  прочитали первый байт
+      if (inByte[0] == 0) flag_source = 1; // идут команды с мобилки пульта блютус
+      else if (inByte[0] == 0x8e) {
+        flag_source = 2; //  идет программа снапа
+        count_snap = 1; // первый байт мы уже прочитали
+        flag_snap = 0; // признак принятия пакета
+      }
+        Serial.print(inByte[0], HEX);
+      return;
+      break;
+    case 1: //  здесь идут 7 байт с мобильника. Один уже прочтен ранее
+            Serial.print("count = ");
+            Serial.println(count);            
+      if (count < 6) return;
+      for (i = 0; i < count; i++) {
+        inByte[i + 1] = BTSerial.read();
+        delay(10);
+        Serial.print(inByte[i+1], HEX); // вывод в COM порт побайтоно в десятичной системе
+      }
+    Serial.println(); // перевод строки в мониторе
+      break;
+    case 2: //  здесь мы читаем байты от програмы SNAP
+      for (i = 0; i < count; i++) {
+        inByte[count_snap] = BTSerial.read();
+        if (inByte[count_snap] == 0x8f) {
+          count_snap++;
+          flag_snap = 1;
+          break;
+        }
+        delay(10);
+        count_snap++; // увеличиывем счетчик для массива исполняемой программы из Снапа
+      }
+      if (flag_snap == 0) return;
+      break;
   }
-  //  Serial.println(); // перевод строки в мониторе
+
 
   // начало разбор принятых байт
+  if (flag_source == 1) { //  функция  обработки по пультику
 
-  if ((inByte[1] == byte_forward[1]) && (inByte[2] == byte_forward[2]) && (inByte[5] == byte_forward[5]) && (inByte[6] == byte_forward[6])) {
-    press_but = 48; // нажата кнопка вперед
-  }
-  else if ((inByte[1] == byte_left[1]) && (inByte[2] == byte_left[2])  && (inByte[5] == byte_left[5]) && (inByte[6] == byte_left[6])) {
-    press_but = 52; // нажата кнопка влево
-  }
-  else if ((inByte[1] == byte_right[1]) && (inByte[2] == byte_right[2])  && (inByte[5] == byte_right[5]) && (inByte[6] == byte_right[6])) {
-    press_but = 56; // нажата кнопка вправо
-  }
-  else if ((inByte[1] == byte_bakward[1]) && (inByte[2] == byte_bakward[2])  && (inByte[5] == byte_bakward[5]) && (inByte[6] == byte_bakward[6])) {
-    press_but = 60; // нажата кнопка назад
-  }
-  else if ((inByte[1] == byte_stop[1]) && (inByte[2] == byte_stop[2]) && (inByte[5] == byte_stop[5]) && (inByte[6] == byte_stop[6])) {
-    press_but = 65; // нажата кнопка стоп
-  }
-  else if ((inByte[1] == byte_start[1]) && (inByte[2] == byte_start[2]) && (inByte[5] == byte_start[5]) && (inByte[6] == byte_start[6])) {
-    press_but = 66; // нажата кнопка старт
-  }
-  // Разбор нажатия дополнительных кнопок
-  else if ((inByte[1] == byte_a[1]) && (inByte[2] == byte_a[2]) && (inByte[4] == byte_a[4]) && (inByte[5] == byte_a[5])) {
-    press_but = 71; // нажата кнопка A
-  }
-  else  if ((inByte[1] == byte_b[1]) && (inByte[2] == byte_b[2]) && (inByte[4] == byte_b[4]) && (inByte[5] == byte_b[5])) {
-    press_but = 72; // нажата кнопка B
-  }
-  else  if ((inByte[1] == byte_c[1]) && (inByte[2] == byte_c[2]) && (inByte[4] == byte_c[4]) && (inByte[5] == byte_c[5])) {
-    press_but = 74; // нажата кнопка C
-  }
-  else if ((inByte[1] == byte_x[1]) && (inByte[2] == byte_x[2]) && (inByte[4] == byte_x[4]) && (inByte[5] == byte_x[5])) {
-    press_but = 78; // нажата кнопка X
-  }
-  else if ((inByte[1] == byte_y[1]) && (inByte[2] == byte_y[2]) && (inByte[4] == byte_y[4]) && (inByte[5] == byte_y[5])) {
-    press_but = 80; // нажата кнопка Y
-  }
-  else if ((inByte[1] == byte_z[1]) && (inByte[2] == byte_z[2]) && (inByte[4] == byte_z[4]) && (inByte[5] == byte_z[5])) {
-    press_but = 90; // нажата кнопка Z
-  }
-  // конец разбор принятых байт
-  if (n >= 25) n = 0; // массив из 25 шагов команды, защита от переполнения
+    if ((inByte[1] == byte_forward[1]) && (inByte[2] == byte_forward[2]) && (inByte[5] == byte_forward[5]) && (inByte[6] == byte_forward[6])) {
+      press_but = 48; // нажата кнопка вперед
+    }
+    else if ((inByte[1] == byte_left[1]) && (inByte[2] == byte_left[2])  && (inByte[5] == byte_left[5]) && (inByte[6] == byte_left[6])) {
+      press_but = 52; // нажата кнопка влево
+    }
+    else if ((inByte[1] == byte_right[1]) && (inByte[2] == byte_right[2])  && (inByte[5] == byte_right[5]) && (inByte[6] == byte_right[6])) {
+      press_but = 56; // нажата кнопка вправо
+    }
+    else if ((inByte[1] == byte_bakward[1]) && (inByte[2] == byte_bakward[2])  && (inByte[5] == byte_bakward[5]) && (inByte[6] == byte_bakward[6])) {
+      press_but = 60; // нажата кнопка назад
+    }
+    else if ((inByte[1] == byte_stop[1]) && (inByte[2] == byte_stop[2]) && (inByte[5] == byte_stop[5]) && (inByte[6] == byte_stop[6])) {
+      press_but = 65; // нажата кнопка стоп
+    }
+    else if ((inByte[1] == byte_start[1]) && (inByte[2] == byte_start[2]) && (inByte[5] == byte_start[5]) && (inByte[6] == byte_start[6])) {
+      press_but = 66; // нажата кнопка старт
+    }
+    // Разбор нажатия дополнительных кнопок
+    else if ((inByte[1] == byte_a[1]) && (inByte[2] == byte_a[2]) && (inByte[4] == byte_a[4]) && (inByte[5] == byte_a[5])) {
+      press_but = 71; // нажата кнопка A
+    }
+    else  if ((inByte[1] == byte_b[1]) && (inByte[2] == byte_b[2]) && (inByte[4] == byte_b[4]) && (inByte[5] == byte_b[5])) {
+      press_but = 72; // нажата кнопка B
+    }
+    else  if ((inByte[1] == byte_c[1]) && (inByte[2] == byte_c[2]) && (inByte[4] == byte_c[4]) && (inByte[5] == byte_c[5])) {
+      press_but = 74; // нажата кнопка C
+    }
+    else if ((inByte[1] == byte_x[1]) && (inByte[2] == byte_x[2]) && (inByte[4] == byte_x[4]) && (inByte[5] == byte_x[5])) {
+      press_but = 78; // нажата кнопка X
+    }
+    else if ((inByte[1] == byte_y[1]) && (inByte[2] == byte_y[2]) && (inByte[4] == byte_y[4]) && (inByte[5] == byte_y[5])) {
+      press_but = 80; // нажата кнопка Y
+    }
+    else if ((inByte[1] == byte_z[1]) && (inByte[2] == byte_z[2]) && (inByte[4] == byte_z[4]) && (inByte[5] == byte_z[5])) {
+      press_but = 90; // нажата кнопка Z
+    }
+    // конец разбор принятых байт
+    if (n >= 25) n = 0; // массив из 25 шагов команды, защита от переполнения
 
-  // обработка нажатия кнопки
-  if ( press_but > 67) { // если нажата кнопка A B C X Y Z то
-    press_last = press_but; // запоминаем последнюю нажатую кнопку
-    return; // уходим на следующий цикл
-  }
-  // Разбор кнопок движения +++++++++++++++++++++++++++++++++++
-  // Движение вперед
-  if ( press_but == 48) {
-    n++; // для программы увеличиваем на единицу индекс массива
-    time1 = millis();  // Запоминаем время нажатия кнопки
-    flag_last_but = 1; // поднимаем флаг нажатой кнопки   для подсчета времени
-    if (flag_start_program == 1)  {
-      memset (program_move, 0, sizeof(int)*25); //для первой команды  после программы обнуляем массив
-      n = 1; // ставим индексы всех массивов в 0
-      flag_start_program = 0; // опускаем флаг старта программы
+    // обработка нажатия кнопки
+    if ( press_but > 67) { // если нажата кнопка A B C X Y Z то
+      flag_source = 0; //  опускаем флаг источника данных
+      press_last = press_but; // запоминаем последнюю нажатую кнопку
+      return; // уходим на следующий цикл
     }
-    if (press_last == 78) {
-      go_forward_x(pwm);
-      program_move[n] = 0x0; //запоминаем в программе шаг вперед на времяX
-    }
-    else if (press_last == 80) {
-      go_forward_y(pwm);
-      program_move[n] = 0x2; //запоминаем в программе шаг впере на время Y
-    }
-    else
-    {
-      go_forward_z(pwm);
-      program_move[n] = 0x1; //запоминаем в программе шаг вперед на время Z  по стопу
-    }
-  }
-
-  // Движение влево ++++++++++++++++++++++++++++
-  if ( press_but == 52) {
-    n++; // для программы увеличиваем на единицу индекс массива
-    time1 = millis();  // Запоминаем время нажатия кнопки
-    flag_last_but = 1; // поднимаем флаг нажатой кнопки   для подсчета времени
-    if (flag_start_program == 1)  {
-      memset (program_move, 0, sizeof(int)*25); //для первой команды  после программы обнуляем массив
-      n = 1; // ставим индексы всех массивов в 0
-      flag_start_program = 0; // опускаем флаг старта программы
+    // Разбор кнопок движения +++++++++++++++++++++++++++++++++++
+    // Движение вперед
+    if ( press_but == 48) {
+      n++; // для программы увеличиваем на единицу индекс массива
+      time1 = millis();  // Запоминаем время нажатия кнопки
+      flag_last_but = 1; // поднимаем флаг нажатой кнопки   для подсчета времени
+      if (flag_start_program == 1)  {
+        memset (program_move, 0, sizeof(int) * 25); //для первой команды  после программы обнуляем массив
+        n = 1; // ставим индексы всех массивов в 0
+        flag_start_program = 0; // опускаем флаг старта программы
+      }
+      if (press_last == 78) {
+        go_forward_x(pwm);
+        program_move[n] = 0x0; //запоминаем в программе шаг вперед на времяX
+      }
+      else if (press_last == 80) {
+        go_forward_y(pwm);
+        program_move[n] = 0x2; //запоминаем в программе шаг впере на время Y
+      }
+      else
+      {
+        go_forward_z(pwm);
+        program_move[n] = 0x1; //запоминаем в программе шаг вперед на время Z  по стопу
+      }
     }
 
-    if (press_last == 78) {
-      go_left_x(pwm);
-      program_move[n] = 0x4; //запоминаем в программе шаг влево на времяX
-    }
-    else if (press_last == 80) {
-      go_left_y(pwm);
-      program_move[n] = 0x6; //запоминаем в программе шаг влево на время Y
-    }
-    else
-    {
-      go_left_z(pwm);
-      program_move[n] = 0x5; //запоминаем в программе шаг влево на время Z  по стопу
-    }
-  }
+    // Движение влево ++++++++++++++++++++++++++++
+    if ( press_but == 52) {
+      n++; // для программы увеличиваем на единицу индекс массива
+      time1 = millis();  // Запоминаем время нажатия кнопки
+      flag_last_but = 1; // поднимаем флаг нажатой кнопки   для подсчета времени
+      if (flag_start_program == 1)  {
+        memset (program_move, 0, sizeof(int) * 25); //для первой команды  после программы обнуляем массив
+        n = 1; // ставим индексы всех массивов в 0
+        flag_start_program = 0; // опускаем флаг старта программы
+      }
 
-  // Движение вправо ++++++++++++++++++++++++++++++
-  if ( press_but == 56) {
-    n++; // для программы увеличиваем на единицу индекс массива
-    time1 = millis();  // Запоминаем время нажатия кнопки
-    flag_last_but = 1; // поднимаем флаг нажатой кнопки   для подсчета времени
-    if (flag_start_program == 1)  {
-      memset (program_move, 0, sizeof(int)*25); //для первой команды  после программы обнуляем массив
-      n = 1; // ставим индексы всех массивов в 0
-      flag_start_program = 0; // опускаем флаг старта программы
-    }
-
-    if (press_last == 78) {
-      go_right_x(pwm);
-      program_move[n] = 0x8; //запоминаем в программе шаг вправо на времяX
-    }
-    else if (press_last == 80) {
-      go_right_y(pwm);
-      program_move[n] = 0xA; //запоминаем в программе шаг вправо на время Y
-    }
-    else
-    {
-      go_right_z(pwm);
-      program_move[n] = 0x9; //запоминаем в программе шаг вправо на время Z  по стопу
-    }
-  }
-
-  // Движение назад +++++++++++++++++++++++++++++++++++++
-  if ( press_but == 60) {
-    n++; // для программы увеличиваем на единицу индекс массива
-    time1 = millis();  // Запоминаем время нажатия кнопки
-    flag_last_but = 1; // поднимаем флаг нажатой кнопки   для подсчета времени
-    if (flag_start_program == 1)  {
-      memset (program_move, 0, sizeof(int)*25); //для первой команды  после программы обнуляем массив
-      n = 1; // ставим индексы всех массивов в 0
-      flag_start_program = 0; // опускаем флаг старта программы
+      if (press_last == 78) {
+        go_left_x(pwm);
+        program_move[n] = 0x4; //запоминаем в программе шаг влево на времяX
+      }
+      else if (press_last == 80) {
+        go_left_y(pwm);
+        program_move[n] = 0x6; //запоминаем в программе шаг влево на время Y
+      }
+      else
+      {
+        go_left_z(pwm);
+        program_move[n] = 0x5; //запоминаем в программе шаг влево на время Z  по стопу
+      }
     }
 
-    if (press_last == 78) {
-      go_bakward_x(pwm);
-      program_move[n] = 0xC; //запоминаем в программе шаг назад на времяX
-    }
-    else if (press_last == 80) {
-      go_bakward_y(pwm);
-      program_move[n] = 0xE; //запоминаем в программе шаг назад на время Y
-    }
-    else
-    {
-      go_bakward_z(pwm);
-      program_move[n] = 0xD; //запоминаем в программе шаг назад на время Z  по стопу
-    }
-  }
+    // Движение вправо ++++++++++++++++++++++++++++++
+    if ( press_but == 56) {
+      n++; // для программы увеличиваем на единицу индекс массива
+      time1 = millis();  // Запоминаем время нажатия кнопки
+      flag_last_but = 1; // поднимаем флаг нажатой кнопки   для подсчета времени
+      if (flag_start_program == 1)  {
+        memset (program_move, 0, sizeof(int) * 25); //для первой команды  после программы обнуляем массив
+        n = 1; // ставим индексы всех массивов в 0
+        flag_start_program = 0; // опускаем флаг старта программы
+      }
 
-  // Движение стоп ++++++++++++++++++++++++++++++
-  if ( press_but == 65) {
-    time2 = millis();  // Запоминаем время нажатия кнопки
-    if (n > 0) {
-      if (flag_last_but == 1)
-        program_time[n] = time2 - time1; //записываем по индексу в массив время движения
-      flag_last_but = 0; // опускаем флаг нажатой кнопки
+      if (press_last == 78) {
+        go_right_x(pwm);
+        program_move[n] = 0x8; //запоминаем в программе шаг вправо на времяX
+      }
+      else if (press_last == 80) {
+        go_right_y(pwm);
+        program_move[n] = 0xA; //запоминаем в программе шаг вправо на время Y
+      }
+      else
+      {
+        go_right_z(pwm);
+        program_move[n] = 0x9; //запоминаем в программе шаг вправо на время Z  по стопу
+      }
     }
-    go_stop(pwm);
-  }
 
-  // Движение по кнопке программа +++++++++++++++++++
-  if ( press_but == 66) {
-    if (press_last == 71)go_program_a (pwm, n); // запускаем езду по командам программе в прямой последовательности
-    if (press_last == 72)go_program_b (pwm, n); // запускаем езду по командам программе в обратной последовательности
-    flag_start_program = 1; // поднимаем флаг старта программы
-  }
+    // Движение назад +++++++++++++++++++++++++++++++++++++
+    if ( press_but == 60) {
+      n++; // для программы увеличиваем на единицу индекс массива
+      time1 = millis();  // Запоминаем время нажатия кнопки
+      flag_last_but = 1; // поднимаем флаг нажатой кнопки   для подсчета времени
+      if (flag_start_program == 1)  {
+        memset (program_move, 0, sizeof(int) * 25); //для первой команды  после программы обнуляем массив
+        n = 1; // ставим индексы всех массивов в 0
+        flag_start_program = 0; // опускаем флаг старта программы
+      }
 
+      if (press_last == 78) {
+        go_bakward_x(pwm);
+        program_move[n] = 0xC; //запоминаем в программе шаг назад на времяX
+      }
+      else if (press_last == 80) {
+        go_bakward_y(pwm);
+        program_move[n] = 0xE; //запоминаем в программе шаг назад на время Y
+      }
+      else
+      {
+        go_bakward_z(pwm);
+        program_move[n] = 0xD; //запоминаем в программе шаг назад на время Z  по стопу
+      }
+    }
+
+    // Движение стоп ++++++++++++++++++++++++++++++
+    if ( press_but == 65) {
+      time2 = millis();  // Запоминаем время нажатия кнопки
+      if (n > 0) {
+        if (flag_last_but == 1)
+          program_time[n] = time2 - time1; //записываем по индексу в массив время движения
+        flag_last_but = 0; // опускаем флаг нажатой кнопки
+      }
+      go_stop(pwm);
+     }
+
+    // Движение по кнопке программа +++++++++++++++++++
+    if ( press_but == 66) {
+      if (press_last == 71)go_program_a (pwm, n); // запускаем езду по командам программе в прямой последовательности
+      if (press_last == 72)go_program_b (pwm, n); // запускаем езду по командам программе в обратной последовательности
+      flag_start_program = 1; // поднимаем флаг старта программы
+    }
+    flag_source = 0; //  опускаем флаг источника данных
+  } //  endif (flag_source == 1)
+  
+  if (flag_source == 2) {
+    for (i = 0; i < count_snap - 2; i++){
+      program_move[i]=inByte[i+1]; // переонсим принятый массив байт в массив для исполнения 
+    }
+    go_program_a (pwm, count_snap - 2); // запускаем езду по командам программе в прямой последовательности
+    flag_source = 0; //  опускаем флаг источника данных
+  }//  endif (flag_source == 2)
 }//все, конец рабочего цикла
 
 
@@ -416,7 +464,7 @@ void go_program_a(int pwm, int n_con) // Подпрограмма езды по 
       delay(program_time[n]);
       go_stop(pwm);
     }
-delay(500);
+    delay(500);
   }
 }
 
@@ -474,6 +522,7 @@ void go_program_b(int pwm, int n_con) // Подпрограмма езды по 
       delay(program_time[n]);
       go_stop(pwm);
     }
-delay(500);
+    delay(500);
   }
 }
+

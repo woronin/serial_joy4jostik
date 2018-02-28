@@ -1,12 +1,12 @@
 //////////////////////////////////////////////
-//     2018.01.20 woronin,  umkiedu@gmail.com
-//     Robot UMKI controller K6
+//     2018.02.28 woronin,  umkiedu@gmail.com
+//     Robot UMKI controller K6, K6-mini
 //     To connect using 4joyjostik mobile app by link http://arduino-robot.site/basic/serial
 //     - for ANDROID 4.0.1 or later version;
 //////////////////////////////////////////////
 #include <SoftwareSerial.h>
 
-SoftwareSerial BTSerial(10, 11); // RX, TX
+SoftwareSerial BTSerial(6,7); // RX, TX
 int byte_forward[] = {0, 0,   129, 0, 4, 0, 0};
 int byte_bakward[] = {0, 0,   127, 0, 4, 0, 0};
 int byte_left[]    = {0, 129, 0,   0, 4, 0, 0};
@@ -35,6 +35,7 @@ void setup() {
   // инициализируем те порты,
   BTSerial.begin(9600);
   Serial.begin(19200);
+  Serial.println("88888"); //  отладка поиска старта программы
 }
 
 
@@ -49,6 +50,7 @@ void loop() // выполняется циклически записываем 
   // читаем из блютус порта 7 байт
   count = BTSerial.available();
   if (count < 1) return;
+
   switch (flag_source) {
     case 0: //  определяем по первому байту откуда пришли байты в порт - либо с моб, либо от снап
       inByte[0] = BTSerial.read(); //  прочитали первый байт
@@ -58,19 +60,22 @@ void loop() // выполняется циклически записываем 
         count_snap = 1; // первый байт мы уже прочитали
         flag_snap = 0; // признак принятия пакета
       }
-        Serial.print(inByte[0], HEX);
-      return;
+        Serial.println(); // перевод строки в мониторе когда  пришел первый байт в слове
+        Serial.print(inByte[0], HEX); // вывод в COM порт побайтоно в шестнадцатиричной системе
+        Serial.print(" "); // ставим пробел между байтаами, чтобы удобно было смотреть монитор порта
+        return;
       break;
     case 1: //  здесь идут 7 байт с мобильника. Один уже прочтен ранее
-            Serial.print("count = ");
-            Serial.println(count);            
-      if (count < 6) return;
+//            Serial.print("count = ");
+//            Serial.println(count);            
+      if (count > 11) return; // Защита от перезаписывания в ардуино при режиме гироскопа
+      if (count < 6) return; //  ни чего не обрабатываем до последнего байта слова
       for (i = 0; i < count; i++) {
         inByte[i + 1] = BTSerial.read();
         delay(10);
-        Serial.print(inByte[i+1], HEX); // вывод в COM порт побайтоно в десятичной системе
+        Serial.print(inByte[i+1], HEX); // вывод в COM порт побайтоно в шестнадцатиричной системе
+        Serial.print(" "); // ставим пробел между байтаами, чтобы удобно было смотреть монитор порта
       }
-    Serial.println(); // перевод строки в мониторе
       break;
     case 2: //  здесь мы читаем байты от програмы SNAP
       for (i = 0; i < count; i++) {

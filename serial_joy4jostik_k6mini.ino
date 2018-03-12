@@ -1,10 +1,11 @@
 //////////////////////////////////////////////
-//     2018.03.11 woronin,  umkiedu@gmail.com
-//     Robot UMKI controller  K6-mini
+//     2018.03.12 woronin,  umkiedu@gmail.com
+//     Robot UMKI controller  K6_mini
 //     To connect using 4joyjostik mobile app by link http://arduino-robot.site/basic/serial
 //     - for ANDROID 4.0.1 or later version;
 //////////////////////////////////////////////
 #include <SoftwareSerial.h>
+#define diod_led 13 // Порт для диодика
 
 SoftwareSerial BTSerial(6,7); // RX, TX
 int byte_forward[] = {0, 0,   129, 0, 4, 0, 0};
@@ -274,10 +275,11 @@ void loop() // выполняется циклически записываем 
         if (inByte[i] == 0x03 )  count_snap_cikl++; // подсчитываем количество повторов цикла в коде
         if (count_snap_cikl ==0) count_snap_cikl=1; //Задаем один проход если небыло циклов в программе снапа
     }
-    for (i = 0; i < count_snap - 2; i++){ 
-      program_move[i]=inByte[i]; // переносим принятый массив байт в массив для исполнения 
+    for (i = 1; i <= count_snap - 2; i++){ 
+      program_move[i-1]=inByte[i]; // переносим принятый массив байт в массив для исполнения 
     }
-    for (i = 0; i < count_snap_cikl; i++){ //  исполняем программу в цикле с учетом повторов  
+     
+    for (i = 1; i < count_snap_cikl; i++){ //  исполняем программу в цикле с учетом повторов  
       go_program_a (pwm, count_snap - 2); // запускаем езду по командам программе в прямой последовательности
 
     }
@@ -429,6 +431,12 @@ void go_speaker(int pwm) // Писк спикера
   analogWrite(speaker, pwm); // выкл спикер
 }
 
+void go_blink(int pwm) // моргание диодика
+{
+  digitalWrite(diod_led, HIGH); // вкл диодик
+  delay (1500);
+  digitalWrite(diod_led, LOW); // выкл диодик
+}
 
 void go_stop(int pwm) // стоп
 {
@@ -440,7 +448,7 @@ void go_stop(int pwm) // стоп
 void go_program_a(int pwm, int n_con) // Подпрограмма езды по заданым шагам программы после А
 {
   int n;
-  for (n = 1; n <= n_con; n++) {
+  for (n = 0; n < n_con; n++) {
 
     Serial.print(n);
     Serial.print(" np= ");
@@ -497,6 +505,10 @@ void go_program_a(int pwm, int n_con) // Подпрограмма езды по 
       delay(program_time[n]);
       go_stop(pwm);
     }
+    else if (program_move[n] == 0xF) {// Моргнуть диодиком
+      go_blink(pwm);
+    }
+
     delay(500);
   }
 }

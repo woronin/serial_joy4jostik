@@ -1,5 +1,5 @@
 //////////////////////////////////////////////
-//     2018.03.12 woronin,  umkiedu@gmail.com
+//     2018.04.10 woronin,  umkiedu@gmail.com
 //     Robot UMKI controller  K6_mini
 //     To connect using 4joyjostik mobile app by link http://arduino-robot.site/basic/serial
 //     - for ANDROID 4.0.1 or later version;
@@ -27,13 +27,16 @@ int motor_r1 = 2; // направление правый
 int motor_l1 = 4; // направление левый
 int speaker = 5; // ножка спикера
 
-int program_move[255], program_time[255], program_speed[255]; //инициализация трех массивов, направления, времени, скорости
+int program_move[50], program_time[50], program_speed[50]; //инициализация трех массивов, направления, времени, скорости
 int side, pwm = 255, press_time, time1, time2, press_but = 0, press_last = 0, flag_last_but = 0, flag_start_program = 0;
 int flag_source = 0; // флаг источника данных команд 0- ничего , 1 - блютус, 2 - снап
 int timeX = 150; // время в милисек для кнопки X
 int timeY = 300; // время в милисек для кнопки Y
-int n = 0; //  номер команды движения из 128
+int n = 0; //  номер команды движения из 50
 int count_snap_cikl =0 ; // счетчик циклов в коде от снапа,задается в подпрограмме снапа
+int inByte[64];
+int inByte_count=0; // Число прочитанных байтов в массив inbyte
+int check_cmd(void); //  функция для проверки коректности принятых байт
 
 void setup() {
   // инициализируем те порты,
@@ -43,9 +46,10 @@ void setup() {
 }
 
 
+
 void loop() // выполняется циклически записываем в порт по шнурку все полученны данные с блютуса
 {
-  int inByte[128], i, count; //i - это элемент массива команды из 7 байт
+  int  i, count; 
   static int count_snap = 0; //  длина в байтах команды от снапа
   static int flag_snap = 0; // только для снапа, когда 0 - ожидает конца пакета, 1 - получен последний байт пакета
   // todo  сделать защиту от переполнения массива inByte[]
@@ -58,29 +62,49 @@ void loop() // выполняется циклически записываем 
   switch (flag_source) {
     case 0: //  определяем по первому байту откуда пришли байты в порт - либо с моб, либо от снап
       inByte[0] = BTSerial.read(); //  прочитали первый байт
+      inByte_count = 1;
       if (inByte[0] == 0) flag_source = 1; // идут команды с мобилки пульта блютус
       else if (inByte[0] == 0x8e) {
         flag_source = 2; //  идет программа снапа
         count_snap = 1; // первый байт мы уже прочитали
         flag_snap = 0; // признак принятия пакета
       }
-        Serial.println(); // перевод строки в мониторе когда  пришел первый байт в слове
-        Serial.print(inByte[0], HEX); // вывод в COM порт побайтоно в шестнадцатиричной системе
-        Serial.print(" "); // ставим пробел между байтаами, чтобы удобно было смотреть монитор порта
+      else flag_source = 0; // чтобы при потеряных байтах возвращалась сюда же
+
         return;
       break;
-    case 1: //  здесь идут 7 байт с мобильника. Один уже прочтен ранее
-//            Serial.print("count = ");
-//            Serial.println(count);            
-      if (count > 11) return; // Защита от перезаписывания в ардуино при режиме гироскопа
-      if (count < 6) return; //  ни чего не обрабатываем до последнего байта слова
+
+    case 1: //  здесь идут 7 байт с мобильника. Один уже прочтен ранее           
+      if (inByte_count+count > 7) {
+        count = 7-inByte_count; // обрабатываем только одну команду за раз
+        
+        }
+      
       for (i = 0; i < count; i++) {
-        inByte[i + 1] = BTSerial.read();
-        delay(10);
-        Serial.print(inByte[i+1], HEX); // вывод в COM порт побайтоно в шестнадцатиричной системе
-        Serial.print(" "); // ставим пробел между байтаами, чтобы удобно было смотреть монитор порта
+        inByte[inByte_count++] = BTSerial.read();
+//        delay(10);
+//        Serial.print(inByte[i+1], HEX); // вывод в COM порт побайтоно в шестнадцатиричной системе
+//        Serial.print(" "); // ставим пробел между байтаами, чтобы удобно было смотреть монитор порта
       }
+      if (check_cmd() == 0) {  //  пришла битая команда
+M:        
+        for(i=0; i<inByte_count-1; i++) // сдвигаем элементы массива
+        {
+          inByte[i] = inByte[i+1];        
+        }
+        inByte_count--;
+        if (inByte_count < 1) 
+        {
+        flag_source = 0;
+        return;
+        }
+        if (check_cmd()==0) 
+           goto M;
+   
+      }
+      if (inByte_count < 7) return;
       break;
+
     case 2: //  здесь мы читаем байты от програмы SNAP
       for (i = 0; i < count; i++) {
         inByte[count_snap] = BTSerial.read();
@@ -138,7 +162,8 @@ void loop() // выполняется циклически записываем 
       press_but = 90; // нажата кнопка Z
     }
     // конец разбор принятых байт
-    if (n >= 25) n = 0; // массив из 25 шагов команды, защита от переполнения
+  
+    if (n >= 25) n = 25; // массив из 25 шагов команды, защита от переполнения
 
     // обработка нажатия кнопки
     if ( press_but > 67) { // если нажата кнопка A B C X Y Z то
@@ -571,3 +596,133 @@ void go_program_b(int pwm, int n_con) // Подпрограмма езды по 
   }
 }
 
+int check_cmd() //  функция для проверки коректности принятых байт
+{
+  int i;
+  int flag=0; // флаг выхода по  признаку правильной команды
+  for (i=0; i<inByte_count; i++)
+  {
+    if(inByte[i] != byte_forward[i] ) {
+      flag = 1;
+      break; 
+    }
+  }
+  if (flag == 0) return 1; //  распознали  команду
+  flag = 0;
+  
+   for (i=0; i<inByte_count; i++)
+  {
+    if(inByte[i] != byte_bakward[i] ) {
+      flag = 1;
+      break; 
+    }
+  }
+  if (flag == 0) return 2; //  распознали  команду
+  flag = 0;
+  
+   for (i=0; i<inByte_count; i++)
+  {
+    if(inByte[i] != byte_left[i] ) {
+      flag = 1;
+      break; 
+    }
+  }
+  if (flag == 0) return 3; //  распознали  команду
+  flag = 0;
+  
+    for (i=0; i<inByte_count; i++)
+  {
+    if(inByte[i] != byte_right[i] ) {
+      flag = 1;
+      break; 
+    }
+  }
+  if (flag == 0) return 4; //  распознали  команду
+  flag = 0;
+  
+  
+    for (i=0; i<inByte_count; i++)
+  {
+    if(inByte[i] != byte_stop[i] ) {
+      flag = 1;
+      break; 
+    }
+  }
+  if (flag == 0) return 5; //  распознали  команду
+  flag = 0;
+  
+ 
+    for (i=0; i<inByte_count; i++)
+  {
+    if(inByte[i] != byte_start[i] ) {
+      flag = 1;
+      break; 
+    }
+  }
+  if (flag == 0) return 6; //  распознали  команду
+  flag = 0;
+
+ 
+    for (i=0; i<inByte_count; i++)
+  {
+    if(inByte[i] != byte_a[i] ) {
+      flag = 1;
+      break; 
+    }
+  }
+  if (flag == 0) return 7; //  распознали  команду
+  flag = 0;  
+
+
+ 
+    for (i=0; i<inByte_count; i++)
+  {
+    if(inByte[i] != byte_b[i] ) {
+      flag = 1;
+      break; 
+    }
+  }
+  if (flag == 0) return 8; //  распознали  команду
+  flag = 0;  
+
+   for (i=0; i<inByte_count; i++)
+  {
+    if(inByte[i] != byte_c[i] ) {
+      flag = 1;
+      break; 
+    }
+  }
+  if (flag == 0) return 9; //  распознали  команду
+  flag = 0;  
+
+   for (i=0; i<inByte_count; i++)
+  {
+    if(inByte[i] != byte_x[i] ) {
+      flag = 1;
+      break; 
+    }
+  }
+  if (flag == 0) return 10; //  распознали  команду
+  flag = 0;  
+
+   for (i=0; i<inByte_count; i++)
+  {
+    if(inByte[i] != byte_y[i] ) {
+      flag = 1;
+      break; 
+    }
+  }
+  if (flag == 0) return 11; //  распознали  команду
+  flag = 0;  
+
+   for (i=0; i<inByte_count; i++)
+  {
+    if(inByte[i] != byte_z[i] ) {
+      flag = 1;
+      break; 
+    }
+  }
+  if (flag == 0) return 12; //  распознали  команду
+
+return 0;
+}

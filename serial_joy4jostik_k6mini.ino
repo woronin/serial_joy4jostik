@@ -1,5 +1,5 @@
 //////////////////////////////////////////////
-//     2018.05.01 woronin,  umkiedu@gmail.com
+//     2018.05.31 woronin,  umkiedu@gmail.com
 //     Robot UMKI controller  K6_mini
 //     To connect using 4joyjostik mobile app by link http://arduino-robot.site/basic/serial
 //     - for ANDROID 4.0.1 or later version;
@@ -32,6 +32,8 @@ int side, pwm = 255, press_time, time1, time2, press_but = 0, press_last = 0, fl
 int flag_source = 0; // флаг источника данных команд 0- ничего , 1 - блютус, 2 - снап
 int timeX = 150; // время в милисек для кнопки X
 int timeY = 300; // время в милисек для кнопки Y
+int pwmX = 120;  // скорость вращения моторов для кнопки X
+int pwmY = 80;   // скорость вращения моторов для кнопки Y
 int n = 0; //  номер команды движения из 50
 int count_snap_cikl = 0 ; // счетчик циклов в коде от снапа,задается в подпрограмме снапа
 int inByte[64];
@@ -322,24 +324,26 @@ M:
 
 void go_forward_x(int pwm) // вперед поехали после нажатой X
 {
+  pwm = pwm-pwmX;
   digitalWrite(motor_r1, LOW); // вперед правый
   digitalWrite(motor_l1, LOW); // вперед левый
   analogWrite(ml_speed, pwm); // скорость
   analogWrite(mr_speed, pwm);
-  delay(timeX);
-  analogWrite(ml_speed, 0); // скорость стоп
-  analogWrite(mr_speed, 0);
+//  delay(timeX);
+//  analogWrite(ml_speed, 0); // скорость стоп
+//  analogWrite(mr_speed, 0);
 }
 
 void go_forward_y(int pwm)  // вперед поехали после нажатой Y
 {
+  pwm = pwm-pwmY;
   digitalWrite(motor_r1, LOW); // вперед правый
   digitalWrite(motor_l1, LOW); // вперед левый
   analogWrite(ml_speed, pwm); // скорость
   analogWrite(mr_speed, pwm);
-  delay(timeY);
-  analogWrite(ml_speed, 0); // скорость стоп
-  analogWrite(mr_speed, 0);
+//  delay(timeY);
+//  analogWrite(ml_speed, 0); // скорость стоп
+//  analogWrite(mr_speed, 0);
 }
 
 void go_forward_z(int pwm)  // вперед поехали после нажатой Z
@@ -360,6 +364,7 @@ void go_back(int pwm)  // назад поехали
 
 void go_bakward_x(int pwm) // назад поехали после нажатой X
 {
+  pwm = pwm-pwmX;
   digitalWrite(motor_r1, HIGH); // назад правый
   digitalWrite(motor_l1, HIGH); // назад левый
   analogWrite(ml_speed, pwm); // скорость
@@ -371,6 +376,7 @@ void go_bakward_x(int pwm) // назад поехали после нажато�
 
 void go_bakward_y(int pwm)  // назад поехали после нажатой Y
 {
+  pwm = pwm-pwmY;
   digitalWrite(motor_r1, HIGH); // назад правый
   digitalWrite(motor_l1, HIGH); // назад левый
   analogWrite(ml_speed, pwm); // скорость
@@ -390,6 +396,7 @@ void go_bakward_z(int pwm)  // назад поехали после нажато
 
 void go_left_x(int pwm)  // влево поехали после нажатой X
 {
+  pwm = pwm-pwmX;
   digitalWrite(motor_r1, LOW); // вперед правый
   digitalWrite(motor_l1, HIGH); // назад левый
   analogWrite(ml_speed, pwm); // скорость
@@ -401,6 +408,7 @@ void go_left_x(int pwm)  // влево поехали после нажатой 
 
 void go_left_y(int pwm)  // влево поехали после нажатой Y
 {
+  pwm = pwm-pwmY;
   digitalWrite(motor_r1, LOW); // вперед правый
   digitalWrite(motor_l1, HIGH); // назад левый
   analogWrite(ml_speed, pwm); // скорость
@@ -420,6 +428,7 @@ void go_left_z(int pwm)  // влево поехали после нажатой 
 
 void go_right_x(int pwm) // вправо поехали после нажатой X
 {
+  pwm = pwm-pwmX;
   digitalWrite(motor_r1, HIGH ); // назад правый
   digitalWrite(motor_l1, LOW); // вперед левый
   analogWrite(ml_speed, pwm); // скорость
@@ -431,7 +440,7 @@ void go_right_x(int pwm) // вправо поехали после нажато�
 
 void go_right_y(int pwm) // вправо поехали после нажатой Y
 {
-
+  pwm = pwm-pwmY;
   digitalWrite(motor_r1, HIGH ); // назад правый
   digitalWrite(motor_l1, LOW); // вперед левый
   analogWrite(ml_speed, pwm); // скорость
@@ -439,20 +448,18 @@ void go_right_y(int pwm) // вправо поехали после нажато�
   delay(timeY);
   analogWrite(ml_speed, 0); // скорость стоп
   analogWrite(mr_speed, 0);
-
-
-
-}
+ }
 
 void go_right_z(int pwm) // вправо поехали после нажатой Z
 {
-
+  
   digitalWrite(motor_r1, HIGH ); // назад правый
   digitalWrite(motor_l1, LOW); // вперед левый
   analogWrite(ml_speed, pwm); // скорость
   analogWrite(mr_speed, pwm);
+ 
+ }
 
-}
 
 void go_speaker(int pwm) // Писк спикера
 {

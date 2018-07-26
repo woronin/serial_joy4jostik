@@ -1,0 +1,142 @@
+//////////////////////////////////////////////
+//     2018.07.28 woronin,  umkiedu@gmail.com
+//     Bluetooth Robot UMKI controller K6_2
+//
+//////////////////////////////////////////////
+#include <SoftwareSerial.h>
+
+SoftwareSerial BTSerial(11, 12); // RX, TX
+int byte_forward[] = {0, 0,   129, 0, 4, 0, 0};
+int byte_bakward[] = {0, 0,   127, 0, 4, 0, 0};
+int byte_left[]    = {0, 129, 0,   0, 4, 0, 0};
+int byte_right[]   = {0, 127, 0,   0, 4, 0, 0};
+int byte_stop[]    = {0, 0,   0,   0, 4, 0, 0};
+int byte_start[]   = {0, 0,   0,   0, 4, 0, 2};
+
+int motor_l1 = 4; // направление левый
+int motor_l2 = 7; // направление левый
+int ml_speed = 5; // скорость левый
+int motor_r1 = 2; // направление правый
+int motor_r2 = 6; // направление правый
+int mr_speed = 3; // скорость правый
+
+int  pwm = 255,  press_but = 0;
+
+void setup() {
+  // инициализируем те порты,
+  BTSerial.begin(9600);
+  Serial.begin(9600);
+  Serial.println("88887"); //  отладка поиска старта программы
+}
+
+
+void loop() // выполняется циклически записываем в порт по шнурку все полученны данные с блютуса
+{
+  int inByte[25], i, count, i4; //i - это элемент массива команды из 7 байт
+
+  // читаем из блютус порта 7 байт
+  count = BTSerial.available();
+  if (count < 7) count = 0;
+  else {
+    for (i = 0; i < 7; i++) {
+      inByte[i] = BTSerial.read();
+      delay(10);
+      Serial.print(inByte[i], DEC); // вывод в COM порт побайтоно в шестнадцатиричной системе
+      Serial.print(" "); // ставим пробел между байтами, чтобы удобно было смотреть монитор порта
+      if (inByte[i] == 4) i4 = i; // определяем номер позиции цифры 4, иногда смещается.
+    }
+      Serial.println();
+
+    // начало разбор принятых байт
+    if ((inByte[i4 - 3] == byte_forward[1]) && (inByte[i4 - 2] == byte_forward[2]) && (inByte[i4 + 2] == byte_forward[6])) {
+      press_but = 48; // нажата кнопка вперед
+    }
+    else if ((inByte[i4 - 3] == byte_left[1]) && (inByte[i4 - 2] == byte_left[2]) && (inByte[i4 + 2] == byte_left[6])) {
+      press_but = 52; // нажата кнопка влево
+    }
+    else if ((inByte[i4 - 3] == byte_right[1]) && (inByte[i4 - 2] == byte_right[2]) && (inByte[i4 + 2] == byte_right[6])) {
+      press_but = 56; // нажата кнопка вправо
+    }
+    else if ((inByte[i4 - 3] == byte_bakward[1]) && (inByte[i4 - 2] == byte_bakward[2]) && (inByte[i4 + 2] == byte_bakward[6])) {
+      press_but = 60; // нажата кнопка назад
+    }
+    else if ((inByte[i4 - 3] == byte_stop[1]) && (inByte[i4 - 2] == byte_stop[2]) && (inByte[i4 + 2] == byte_stop[6])) {
+      press_but = 65; // нажата кнопка стоп
+    }
+    else if ((inByte[i4 - 3] == byte_start[1]) && (inByte[i4 - 2] == byte_start[2]) && (inByte[i4 + 2] == byte_start[6])) {
+      press_but = 66; // нажата кнопка старт
+    }
+    // конец разбор принятых байт
+
+
+    // обработка нажатия кнопки
+    // Разбор кнопок движения +++++++++++++++++++++++++++++++++++
+    // Движение вперед
+    if ( press_but == 48) {
+      go_forward_x(pwm);
+    }
+
+    // Движение влево ++++++++++++++++++++++++++++
+    if ( press_but == 52) {
+      go_left_x(pwm);
+    }
+
+    // Движение вправо ++++++++++++++++++++++++++++++
+    if ( press_but == 56) {
+      go_right_x(pwm);
+    }
+
+    // Движение назад +++++++++++++++++++++++++++++++++++++
+    if ( press_but == 60) {
+      go_bakward_x(pwm);
+    }
+    // Движение стоп ++++++++++++++++++++++++++++++
+    if ( press_but == 65) {
+      go_stop(pwm);
+    }
+    // Движение по кнопке старт, но стоп ++++++++++++++++++++++++++++++
+    if ( press_but == 66) {
+      go_stop(pwm);
+    }
+
+
+  }
+}//все, конец рабочего цикла
+
+
+////////// подпрограммы ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+void go_forward_x(int pwm) // вперед поехали после нажатой X
+{
+  digitalWrite(motor_l1, LOW); // вперед левый
+  analogWrite(ml_speed, pwm); // скорость
+  Serial.println("for48");
+}
+
+void go_bakward_x(int pwm) // назад поехали после нажатой X
+{
+  digitalWrite(motor_l1, HIGH); // назад правый
+  analogWrite(ml_speed, pwm);
+  Serial.println("bak60");
+}
+
+void go_left_x(int pwm)  // влево поехали после нажатой X
+{
+  digitalWrite(motor_r1, HIGH); // назад левый
+  analogWrite(mr_speed, pwm); // скорость
+  Serial.println("lef52");
+}
+
+void go_right_x(int pwm) // вправо поехали после нажатой X
+{
+  digitalWrite(motor_r1, LOW ); // назад правый
+  analogWrite(mr_speed, pwm);
+  Serial.println("rig56");
+
+}
+
+void go_stop(int pwm) // стоп
+{
+  analogWrite(ml_speed, 0); // скорость стоп
+  analogWrite(mr_speed, 0);
+}

@@ -1,0 +1,200 @@
+//////////////////////////////////////////////
+//     2018.08.04 woronin,  umkiedu@gmail.com
+//     Gidroponik + bluetooth Robot UMKI controller  K6_2
+//
+//////////////////////////////////////////////
+#include <SoftwareSerial.h>
+#include <TroykaDHT.h>
+#define diod_led A0 // Порт для энергии замера
+#define diod_led A1 // Порт для диодика
+
+#define PIN_voda_min 8 // Датчик воды мин
+#define PIN_voda_max 10 // датчик воды макс
+
+SoftwareSerial BTSerial(11, 12); // RX, TX
+int byte_forward[] = {0, 0,   129, 0, 4, 0, 0};
+int byte_bakward[] = {0, 0,   127, 0, 4, 0, 0};
+int byte_left[]    = {0, 129, 0,   0, 4, 0, 0};
+int byte_right[]   = {0, 127, 0,   0, 4, 0, 0};
+int byte_stop[]    = {0, 0,   0,   0, 4, 0, 0};
+int byte_start[]   = {0, 0,   0,   0, 4, 0, 2};
+
+int motor_l1 = 4; // направление левый
+int motor_l2 = 7; // направление левый
+int ml_speed = 5; // скорость левый
+int motor_r1 = 2; // направление правый
+int motor_r2 = 6; // направление правый
+int mr_speed = 3; // скорость правый
+int  pwm = 255,  press_but = 0;
+
+int speaker = 6; // ножка спикера
+
+unsigned long time_pomp    = 2000; // сколько в млсек качаем воду, где 1 мин = 60000 млсек
+unsigned long time_stop    = 80000; // сколько в млсек ожидаем между качанием воды, где 1 час = 3600000 млсек
+unsigned long time_monitor = 10000; // сколько в млсек ожидаем между съемом показаний, где 1 день = 86400000 млсек
+unsigned long time_11; //  время прошлое
+unsigned long time_12; //  время прошлое
+unsigned long time_22; //  время текущее
+unsigned long time_33; //  время текущее
+DHT dht(9, DHT11); // объект класса DHT передаём номер пина к которому подключён датчик и тип датчика
+
+
+void setup() {
+  // инициализируем те порты,
+  BTSerial.begin(9600);
+  Serial.begin(9600);
+  pinMode(PIN_voda_min, INPUT); // пин 0 или 1 датчик уровня воды по минимому
+  pinMode(PIN_voda_max, INPUT); //  пин 0 или 1 датчик уровня воды по максам
+  Serial.println("88888"); //  отладка поиска старта программы
+}
+
+
+
+void loop() // выполняется циклически качаем воду для гидропоники
+{
+  int inByte[25], i, count, i4; //i - это элемент массива команды из 7 байт
+  int status_voda_min = digitalRead(PIN_voda_min);
+  int status_voda_max = digitalRead(PIN_voda_max);
+  float analogVolt = analogRead(0); // Задаем переменную analogVolt для считывания показаний
+
+  // +++++++++++++++++++++++++++++ разбор команд блютуса
+  // читаем из блютус порта 7 байт
+  count = BTSerial.available();
+  if (count < 7) count = 0;
+  else {
+    for (i = 0; i < 7; i++) {
+      inByte[i] = BTSerial.read();
+      delay(10);
+      Serial.print(inByte[i], DEC); // вывод в COM порт побайтоно в шестнадцатиричной системе
+      Serial.print(" "); // ставим пробел между байтами, чтобы удобно было смотреть монитор порта
+      if (inByte[i] == 4) i4 = i; // определяем номер позиции цифры 4, иногда смещается.
+    }
+    Serial.println();
+
+    // начало разбор принятых байт
+    if ((inByte[i4 - 3] == byte_forward[1]) && (inByte[i4 - 2] == byte_forward[2]) && (inByte[i4 + 2] == byte_forward[6])) {
+      press_but = 48; // нажата кнопка вперед
+    }
+    else if ((inByte[i4 - 3] == byte_left[1]) && (inByte[i4 - 2] == byte_left[2]) && (inByte[i4 + 2] == byte_left[6])) {
+      press_but = 52; // нажата кнопка влево
+    }
+    else if ((inByte[i4 - 3] == byte_right[1]) && (inByte[i4 - 2] == byte_right[2]) && (inByte[i4 + 2] == byte_right[6])) {
+      press_but = 56; // нажата кнопка вправо
+    }
+    else if ((inByte[i4 - 3] == byte_bakward[1]) && (inByte[i4 - 2] == byte_bakward[2]) && (inByte[i4 + 2] == byte_bakward[6])) {
+      press_but = 60; // нажата кнопка назад
+    }
+    else if ((inByte[i4 - 3] == byte_stop[1]) && (inByte[i4 - 2] == byte_stop[2]) && (inByte[i4 + 2] == byte_stop[6])) {
+      press_but = 65; // нажата кнопка стоп
+    }
+    else if ((inByte[i4 - 3] == byte_start[1]) && (inByte[i4 - 2] == byte_start[2]) && (inByte[i4 + 2] == byte_start[6])) {
+      press_but = 66; // нажата кнопка старт
+    }
+    // конец разбор принятых байт
+
+
+    // обработка нажатия кнопки
+    // Разбор кнопок движения +++++++++++++++++++++++++++++++++++
+    // Движение вперед
+    if ( press_but == 48) {
+      go_forward_x(pwm);
+    }
+
+    // Движение влево ++++++++++++++++++++++++++++
+    if ( press_but == 52) {
+      go_left_x(pwm);
+    }
+
+    // Движение вправо ++++++++++++++++++++++++++++++
+    if ( press_but == 56) {
+      go_right_x(pwm);
+    }
+
+    // Движение назад +++++++++++++++++++++++++++++++++++++
+    if ( press_but == 60) {
+      go_bakward_x(pwm);
+    }
+    // Движение стоп ++++++++++++++++++++++++++++++
+    if ( press_but == 65) {
+      go_stop(pwm);
+    }
+    // Движение по кнопке старт, но стоп ++++++++++++++++++++++++++++++
+    if ( press_but == 66) {
+      go_stop(pwm);
+    }
+  }
+
+  // +++++++++++++++++++++++++++++ конец разбора блютуса
+  dht.read();   // считывание данных с датчика
+  time_22 = millis(); //  считываем показания счетчика времени
+  time_33 = millis(); //  считываем показания счетчика времени
+  if (time_22 - time_11 > time_stop) { // сравниваем с прошлым временем работы насоса
+    go_motor_pomp(pwm); // запускаем мотор на прокачку воды
+    time_11 = time_22; // переназначаем счетчик
+  }
+  if ((time_33 - time_12) > time_monitor) { // сравниваем с прошлым временем замером температуры-влажности
+    time_12 = time_33; // переназначаем счетчик
+    Serial.print("Timestop= ");
+    Serial.print(time_22 / 1000);
+    Serial.print(" Temp= ");
+    Serial.print(dht.getTemperatureC());
+    Serial.print(" Humid= ");
+    Serial.print(dht.getHumidity());
+    Serial.print(" voda_min= ");
+    Serial.print(status_voda_min);
+    Serial.print(" voda_max= ");
+    Serial.print(status_voda_max);
+    Serial.print(" volt= ");
+    Serial.println(analogVolt * 4.92 / 341); // Выводим значение в вольтах в порт
+  }
+} // loop конец рабочего цикла
+
+////////// подпрограммы ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+void go_forward_x(int pwm) // вперед поехали после нажатой X
+{
+  digitalWrite(motor_l1, LOW ); // вперед левый
+  digitalWrite(motor_l2, LOW); // назад правый
+  analogWrite(ml_speed, pwm); // скорость
+  Serial.println("for48");
+}
+
+void go_bakward_x(int pwm) // назад поехали после нажатой X
+{
+  digitalWrite(motor_l1, HIGH); // вперед левый
+  digitalWrite(motor_l2, HIGH); // назад правый
+  analogWrite(ml_speed, pwm);
+  Serial.println("bak60");
+}
+
+void go_left_x(int pwm)  // влево поехали после нажатой X
+{
+  digitalWrite(motor_r1, LOW); // назад левый
+  digitalWrite(motor_r2, LOW ); // назад правый
+  analogWrite(mr_speed, pwm); // скорость
+  Serial.println("lef52");
+}
+
+void go_right_x(int pwm) // вправо поехали после нажатой X
+{
+  digitalWrite(motor_r1, HIGH); // назад левый
+  digitalWrite(motor_r2, HIGH ); // назад правый
+  analogWrite(mr_speed, pwm);
+  Serial.println("rig56");
+
+}
+
+void go_stop(int pwm) // стоп
+{
+  analogWrite(ml_speed, 0); // скорость стоп
+  analogWrite(mr_speed, 0);
+}
+
+
+void go_motor_pomp(int pwm)  // качаем воду
+{
+  digitalWrite(motor_l1, HIGH); // назад левый
+  analogWrite(ml_speed, pwm); // скорость
+  delay(time_pomp);
+  analogWrite(ml_speed, 0); // скорость стоп
+}
